@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>紀州弁翻訳機</title>
+<style>
+  :root{
+    --ink:#2b2420;
+    --paper:#f2ece0;
+    --paper-deep:#e6ddc9;
+    --line:#c9bd9f;
+    --ito:#8a4b3b;
+    --muro:#2f5d5a;
+    --accent:#b5762f;
+    --warn:#8a6d1c;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:"Hiragino Mincho ProN","Yu Mincho",serif;
+    line-height:1.7;
+    padding:0 0 60px;
+  }
+  header{
+    padding:36px 20px 22px;
+    text-align:center;
+    border-bottom:1px solid var(--line);
+    background:var(--paper-deep);
+  }
+  header h1{margin:0 0 6px; font-size:26px; letter-spacing:.08em; font-weight:600;}
+  header p{margin:0; font-size:13px; color:#5a5148;}
+  main{max-width:640px; margin:0 auto; padding:0 18px;}
+  section{margin-top:34px;}
+  section h2{font-size:17px; border-left:6px solid var(--accent); padding-left:10px; margin-bottom:14px;}
+  .card{background:#fbf8f1; border:1px solid var(--line); border-radius:4px; padding:18px;}
+  label{display:block; font-size:13px; color:#5a5148; margin:12px 0 4px;}
+  label:first-child{margin-top:0;}
+  input[type=text], textarea, select{
+    width:100%; font-family:inherit; font-size:16px; padding:9px 10px;
+    border:1px solid var(--line); border-radius:3px; background:#fff; color:var(--ink);
+  }
+  textarea{resize:vertical; min-height:90px;}
+  .row{display:flex; gap:10px;}
+  .row > div{flex:1;}
+  button{
+    margin-top:16px; width:100%; padding:12px; font-size:15px; font-family:inherit;
+    letter-spacing:.05em; background:var(--ink); color:var(--paper); border:none;
+    border-radius:3px; cursor:pointer;
+  }
+  button:active{opacity:.8;}
+  .results{margin-top:18px;}
+  .dial-block{margin-top:12px; border-radius:3px; overflow:hidden; border:1px solid var(--line);}
+  .dial-head{padding:7px 12px; font-size:13px; color:#fff; letter-spacing:.08em;}
+  .dial-head.ito{background:var(--ito);}
+  .dial-head.muro{background:var(--muro);}
+  table{width:100%; border-collapse:collapse; background:#fff;}
+  td{padding:8px 12px; font-size:15px; border-bottom:1px solid #eee2ce;}
+  td.label{width:38%; color:#7a6f5f; font-size:12.5px; vertical-align:top; padding-top:9px;}
+  td.val{font-size:16px;}
+  .est{color:var(--warn); font-size:11px; margin-left:6px;}
+  .note{font-size:12.5px; color:#7a6f5f; margin-top:10px;}
+  .vocab-grid{display:grid; grid-template-columns:1fr 1fr; gap:4px 16px; font-size:14px;}
+  .vocab-grid div{padding:4px 0; border-bottom:1px dotted #ddd0b3;}
+  .tabs{display:flex; gap:8px; margin-bottom:14px;}
+  .tab-btn{flex:1; padding:9px; font-size:13px; background:#fff; border:1px solid var(--line); border-radius:3px; color:var(--ink); cursor:pointer;}
+  .tab-btn.active{background:var(--ink); color:var(--paper);}
+.footnote{margin-top:26px;}
+.footnote summary{
+  cursor:pointer;
+  font-size:13px;
+  color:var(--ink);
+  text-align:left;
+  padding:8px 0 8px 10px;
+  border-left:6px solid var(--accent);
+  list-style:none;
+}
+.footnote summary::-webkit-details-marker{display:none;}
+.footnote summary::after{content:" ▾"; font-size:11px;}
+.footnote[open] summary::after{content:" ▴"; }
+.footnote .src{margin-top:14px;}
+  .tab-panel{display:none;}
+  .tab-panel.active{display:block;}
+  .src{font-size:11.5px; color:#2b2420; margin-top:26px; text-align:left;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>紀州弁翻訳機</h1>
+  <p>伊都方言 / 東牟婁奥地方言</p>
+<p>詳しい仕様説明等はページ最下</p>
+</header>
+
+<main>
+
+  <section>
+    <h2>① 文章まるごと変換</h2>
+    <div class="card">
+      <label>標準語の文章</label>
+      <textarea id="bulkInput" placeholder="例: これは高いから、あっちの方がいいと思う。"></textarea>
+      <button id="bulkBtn" onclick="renderBulk()" disabled>解析エンジンを読み込み中...</button>
+      <div class="results" id="bulkResults"></div>
+      <p class="note">形態素解析(kuromoji-es)で文を単語に分割し、品詞・原形をもとに変換します。ただし「〜てる」等の縮約形や命令・禁止表現はこの一括変換では扱っていないので、細かい活用は②のツールで個別に確認してください。</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>② 動詞活用(個別確認用)</h2>
+    <div class="card">
+      <label>動詞(ひらがなで・辞書形)</label>
+      <input type="text" id="verbInput" placeholder="例: たべる／かく／する／くる">
+      <label>活用の種類</label>
+      <select id="verbType">
+        <option value="godan">五段活用(例: 書く・読む・話す)</option>
+        <option value="ichidan">一段活用(例: 食べる・見る)</option>
+        <option value="suru">サ変(する／〜する)</option>
+        <option value="kuru">カ変(来る)</option>
+      </select>
+      <button onclick="renderVerb()">活用を出す</button>
+      <div class="results" id="verbResults"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>③ 形容詞の変化(〜くなる型)</h2>
+    <div class="card">
+      <label>形容詞(ひらがなで・辞書形)</label>
+      <input type="text" id="adjInput" placeholder="例: 長い／高い／面白い">
+      <button onclick="renderAdj()">変化を出す</button>
+      <div class="results" id="adjResults"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>④ 特殊語彙リファレンス</h2>
+    <div class="card">
+      <div class="tabs">
+        <button class="tab-btn active" data-key="ito" onclick="showVocabTab(this)">伊都方言</button>
+        <button class="tab-btn" data-key="muro" onclick="showVocabTab(this)">東牟婁奥地方言</button>
+        <button class="tab-btn" data-key="common" onclick="showVocabTab(this)">共通</button>
+      </div>
+      <div class="tab-panel active" id="vocab-ito"></div>
+      <div class="tab-panel" id="vocab-muro"></div>
+      <div class="tab-panel" id="vocab-common"></div>
+    </div>
+  </section>
+
+<details class="footnote">
+  <summary>このツールについて（仕様説明・出典等）</summary>
+  <p class="src">文法出典: <a href="https://ja.wikipedia.org/wiki/紀州弁#文法">Wikipedia「紀州弁」文法欄</a>・<a href="https://www.eonet.ne.jp/~miyahisa/kisyuben/index.html">eoユーザーサポート「紀州弁・和歌山弁」</a>・<a href="https://wave.pref.wakayama.lg.jp/bunka-archive/hougen/index.html">和歌山県文化情報アーカイブ</a>をもとに構成</p>
+  <p class="note">関東育ちの一般人が創作のため作ったツールです。特殊語彙は、よく使うだろうと判断したもののみ載せています。辞書登録等は自分で行いましたが、コードは全てClaudeとGeminiに丸投げし、後から若干修正しています。</p>
+  <p class="note">一通り確認は行いましたが、間違った文章が出てくる可能性があります。ご了承ください。何かありましたら<a href="https://x.com/HNO3_zt">製作者X</a>まで</p>
+<p class="note">伊都方言→伊都郡で使われるものを指しています。本ツールでは高野町を想定しています<br>東牟婁奥地方言→本宮町・北山村・熊野川町・那智勝浦町の色川地区・古座川町の七川・小川・三尾川地区で使われているものを指しています。本ツールでは本宮町を想定しています</p>
+</details>
+
+</main>
+
+<script>
+/* ===================== 基礎マップ ===================== */
+var ROW = {
+  'う':{a:'わ',i:'い',o:'お'},
+  'く':{a:'か',i:'き',o:'こ'},
+  'ぐ':{a:'が',i:'ぎ',o:'ご'},
+  'す':{a:'さ',i:'し',o:'そ'},
+  'つ':{a:'た',i:'ち',o:'と'},
+  'ぬ':{a:'な',i:'に',o:'の'},
+  'ぶ':{a:'ば',i:'び',o:'ぼ'},
+  'む':{a:'ま',i:'み',o:'も'},
+  'る':{a:'ら',i:'り',o:'ろ'}
+};
+
+function teFormGodan(dict){
+  var last = dict.slice(-1);
+  var stem = dict.slice(0,-1);
+  if(last==='く') return stem+'いて';
+  if(last==='ぐ') return stem+'いで';
+  if(last==='す') return stem+'して';
+  if(last==='つ' || last==='う' || last==='る') return stem+'って';
+  if(last==='ぬ' || last==='ぶ' || last==='む') return stem+'んで';
+  return stem+last+'て';
+}
+
+function progressiveIto(te){
+  if(te.slice(-1)==='で') return te.slice(0,-1)+'どる';
+  return te.slice(0,-1)+'とる';
+}
+
+/* ===================== ② 動詞活用(個別ツール・ひらがな入力前提) ===================== */
+function conjugate(dict, type){
+  var r = {};
+  if(type==='godan'){
+    var last = dict.slice(-1);
+    var stem = dict.slice(0,-1);
+    var row = ROW[last];
+    if(!row){ return {error:'五段活用の終止形(う・く・ぐ・す・つ・ぬ・ぶ・む・る)で終わる語を入れてください。'}; }
+    var mizen = stem+row.a;
+    var renyou = stem+row.i;
+    var te = teFormGodan(dict);
+    r.現在形 = dict;
+    r.否定_共通 = mizen+'ん';
+    r.進行形_伊都 = progressiveIto(te);
+    r.進行形_東牟婁 = renyou+'やる';
+    r.使役_共通 = mizen+'す';
+    r.受身_共通 = mizen+'れる';
+    var eMap = {'う':'え','く':'け','ぐ':'げ','す':'せ','つ':'て','ぬ':'ね','ぶ':'べ','む':'め','る':'れ'};
+    r['可能(可能動詞)'] = stem + eMap[last] + 'る';
+    r.推量_共通 = dict+'やろー';
+    r.命令_共通 = (last==='す') ? (mizen+'んせー') : (renyou+'さんせー');
+    r.禁止_共通 = (last==='す') ? (mizen+'んすな') : (renyou+'さんすな');
+    r.勧誘_共通 = stem+row.o+'ら';
+  } else if(type==='ichidan'){
+    var stem2 = dict.slice(0,-1);
+    var te2 = stem2+'て';
+    r.現在形 = dict;
+    r.否定_伊都 = stem2+'らん';
+    r.否定_東牟婁 = stem2+'ん (推定)';
+    r.進行形_伊都 = progressiveIto(te2);
+    r.進行形_東牟婁 = stem2+'やる';
+    r.使役_伊都 = stem2+'らす';
+    r.使役_東牟婁 = stem2+'さす';
+    r['受身・可能'] = stem2+'られる';
+    r.推量_共通 = dict+'やろー';
+    r.命令_共通 = stem2+'さんせー';
+    r.禁止_共通 = stem2+'さんすな';
+    r.勧誘_共通 = stem2+'よら';
+    r.勧誘_伊都_促す形 = stem2+'よそー';
+  } else if(type==='suru'){
+    var stem3 = dict.slice(0,-2);
+    var te3 = stem3+'して';
+    r.現在形 = dict;
+    r.否定_共通 = stem3+'せん';
+    r.進行形_伊都 = progressiveIto(te3);
+    r.進行形_東牟婁 = stem3+'しやる';
+    r.使役_共通 = stem3+'さす';
+    r['受身・可能'] = stem3+'される／'+stem3+'できる';
+    r.推量_共通 = dict+'やろー';
+    r.命令_共通 = stem3+'せんせー';
+    r.禁止_共通 = stem3+'せんすな';
+    r.勧誘_共通 = stem3+'しよら';
+  } else if(type==='kuru'){
+    var stem4 = dict.slice(0,-2);
+    r.現在形 = dict;
+    r.否定_共通 = stem4+'こん';
+    r.進行形_伊都 = stem4+'きとる';
+    r.進行形_東牟婁 = stem4+'きやる';
+    r.使役_共通 = stem4+'こさす';
+    r['受身・可能'] = stem4+'こられる';
+    r.推量_共通 = dict+'やろー';
+    r.命令_共通 = stem4+'きさんせー';
+    r.禁止_共通 = stem4+'きさんすな';
+    r.勧誘_共通 = stem4+'こよら';
+  }
+  return r;
+}
+
+var LABELS = {
+  現在形:'現在形(そのまま)',
+  否定_共通:'否定', 否定_伊都:'否定(伊都)', 否定_東牟婁:'否定(東牟婁奥地)',
+  進行形_伊都:'現在進行形(伊都)', 進行形_東牟婁:'現在進行形(東牟婁奥地)',
+  使役_共通:'使役', 使役_伊都:'使役(伊都)', 使役_東牟婁:'使役(東牟婁奥地)',
+  受身_共通:'受身',
+  推量_共通:'推量', 命令_共通:'命令', 禁止_共通:'禁止',
+  勧誘_共通:'勧誘', 勧誘_伊都_促す形:'勧誘(伊都・促す形)'
+};
+
+function renderVerb(){
+  var dict = document.getElementById('verbInput').value.trim();
+  var type = document.getElementById('verbType').value;
+  var box = document.getElementById('verbResults');
+  if(!dict){ box.innerHTML=''; return; }
+  var res = conjugate(dict, type);
+  if(res.error){ box.innerHTML = '<p class="note">'+res.error+'</p>'; return; }
+  var rows = '';
+  for(var key in res){
+    var label = LABELS[key] || key;
+    rows += '<tr><td class="label">'+label+'</td><td class="val">'+res[key]+'</td></tr>';
+  }
+  box.innerHTML = '<div class="dial-block"><table>'+rows+'</table></div>';
+}
+
+/* ===================== ③ 形容詞のウ音便 ===================== */
+var ONBIN = {'あ':'お','か':'こ','が':'ご','さ':'そ','ざ':'ぞ','た':'と','だ':'ど','な':'の','は':'ほ','ば':'ぼ','ぱ':'ぽ','ま':'も','ら':'ろ','わ':'を'};
+
+function adjOnbin(adj){
+  var stem = adj.slice(0,-1);
+  if(!stem){ return null; }
+  var last = stem.slice(-1);
+  var rest = stem.slice(0,-1);
+  var newLast = ONBIN[last];
+  if(!newLast){ return null; }
+  return rest+newLast+'う';
+}
+
+function renderAdj(){
+  var adj = document.getElementById('adjInput').value.trim();
+  var box = document.getElementById('adjResults');
+  if(!adj){ box.innerHTML=''; return; }
+  var onbin = adjOnbin(adj);
+  if(!onbin){ box.innerHTML = '<p class="note">「い」で終わる形容詞をひらがなで入力してください。</p>'; return; }
+  box.innerHTML =
+    '<div class="dial-block"><table>'+
+    '<tr><td class="label">辞書形</td><td class="val">'+adj+'</td></tr>'+
+    '<tr><td class="label">標準語の連用形</td><td class="val">'+adj.slice(0,-1)+'く</td></tr>'+
+    '<tr><td class="label">紀州弁(共通・オ段化)</td><td class="val">'+onbin+' 〜なる</td></tr>'+
+    '<tr><td class="label">紀州弁(ア段のまま、の言い方も存在)</td><td class="val">'+adj.slice(0,-1)+'ー 〜なる</td></tr>'+
+    '</table></div>';
+}
+
+/* ===================== ④ 語彙リファレンス ===================== */
+var VOCAB = {
+  ito: {
+    '体':'かだら','あらまあ':'あれー','面白い':'おもしゃい','しながら':'もて',
+    '一緒に':'つれもて','それなら':'ほや・ほいだら','あいつ':'あいら',
+    'すごい・とんでもない':'どてらい・どえらい','甘えん坊':'あまえた','あなた':'おまん',
+	 '住職・お坊さん・和尚さん':'坊さん'
+  },
+  muro: {
+    'あいつ':'てき','あいつら':'てきゃら','しょっちゅう・いつも':'じょう',
+    '壊れる':'もじける','ぶっ壊れる':'もじけ飛ぶ','沢山':'いっかど','呆れた':'がいな',
+    '鬱陶しい・面倒くさい':'うたとい','そこら辺':'そこたい','甘えん坊':'あまったれ',
+    '住職・お坊さん・和尚さん':'おっさん','あなた':'お前','あなた様':'おまはん',
+    '菓子':'かしん'
+  },
+  common: {
+    '叔父・伯父':'おいやん','どのように':'なっとう','苦しい':'ずつない',
+    'イタドリ':'沈殿する':'とごる','捨てる・廃棄':'ほかす','片付ける':'なおす',
+    'お調子者':'いちびり','余計なこと':'べっこう','言い訳':'こうしゃく',
+    'おかしい・変':'ちゃっちい','(指を)挟む':'(指を)つめる','解体・崩す':'こぼつ',
+    'もの凄い':'あらくたい','青あざ':'にえる','愚痴':'よまい','新しい・新品':'さら',
+    'しんどい・疲れた':'えらい','理由の「〜から」':'さかい・さか'
+  }
+};
+
+function fillVocab(){
+  ['ito','muro','common'].forEach(function(key){
+    var el = document.getElementById('vocab-'+key);
+    var html = '<div class="vocab-grid">';
+    for(var k in VOCAB[key]){ html += '<div>'+k+'</div><div>→ '+VOCAB[key][k]+'</div>'; }
+    html += '</div>';
+    el.innerHTML = html;
+  });
+}
+function showVocabTab(btn){
+  var key = btn.getAttribute('data-key');
+  var buttons = document.querySelectorAll('.tab-btn');
+  for(var i=0;i<buttons.length;i++){ buttons[i].classList.remove('active'); }
+  btn.classList.add('active');
+  var panels = document.querySelectorAll('.tab-panel');
+  for(var j=0;j<panels.length;j++){ panels[j].classList.remove('active'); }
+  document.getElementById('vocab-'+key).classList.add('active');
+}
+fillVocab();
+
+/* ===================== ① 文章まるごと変換(形態素解析ベース) ===================== */
+
+/* --- kuromoji-es トークナイザの初期化 --- */
+var tokenizer = null;
+
+function initTokenizer(){
+  var btn = document.getElementById('bulkBtn');
+  import('https://code4fukui.github.io/kuromoji-es/kuromoji.js').then(function(mod){
+    return mod.kuromoji.createTokenizer();
+  }).then(function(built){
+    tokenizer = built;
+    if(btn){ btn.disabled = false; btn.textContent = '変換する'; }
+  }).catch(function(err){
+    console.error('kuromoji読み込みエラー:', err);
+    if(btn){ btn.textContent = '解析エンジンの読み込みに失敗しました(通信環境を確認してください)'; }
+  });
+}
+initTokenizer();
+
+/* --- kuromojiの活用型 → 既存conjugate()で使っているtype名への変換 --- */
+function kuromojiTypeToInternal(conjType){
+  if(!conjType) return null;
+  if(conjType.indexOf('一段')===0) return 'ichidan';
+  if(conjType.indexOf('カ変')===0) return 'kuru';
+  if(conjType.indexOf('サ変')===0) return 'suru';
+  if(conjType.indexOf('五段')===0) return 'godan';
+  return null;
+}
+
+/* --- 動詞: 辞書形(basic_form)+typeから紀州弁の各形を算出 --- */
+function verbNegation(basicForm, type, dialect){
+  if(type==='godan'){
+    var last=basicForm.slice(-1), stem=basicForm.slice(0,-1), row=ROW[last];
+    if(!row) return null;
+    return stem+row.a+'ん';
+  }
+  if(type==='ichidan'){
+    var stem2=basicForm.slice(0,-1);
+    return dialect==='ito' ? stem2+'らん' : stem2+'ん';
+  }
+  if(type==='suru'){ return basicForm.slice(0,-2)+'せん'; }
+  if(type==='kuru'){ return '来ん'; }
+  return null;
+}
+
+function verbProgressive(basicForm, type, dialect){
+  if(type==='godan'){
+    var last=basicForm.slice(-1), stem=basicForm.slice(0,-1), row=ROW[last];
+    if(!row) return null;
+    return dialect==='ito' ? progressiveIto(teFormGodan(basicForm)) : stem+row.i+'やる';
+  }
+  if(type==='ichidan'){
+    var stem2=basicForm.slice(0,-1);
+    return dialect==='ito' ? progressiveIto(stem2+'て') : stem2+'やる';
+  }
+  if(type==='suru'){
+    var stem3=basicForm.slice(0,-2);
+    return dialect==='ito' ? progressiveIto(stem3+'して') : stem3+'しやる';
+  }
+  if(type==='kuru'){ return dialect==='ito' ? '来とる' : '来やる'; }
+  return null;
+}
+
+function verbCausative(basicForm, type, dialect){
+  if(type==='godan'){
+    var last=basicForm.slice(-1), stem=basicForm.slice(0,-1), row=ROW[last];
+    if(!row) return null;
+    return stem+row.a+'す';
+  }
+  if(type==='ichidan'){
+    var stem2=basicForm.slice(0,-1);
+    return dialect==='ito' ? stem2+'らす' : stem2+'さす';
+  }
+  if(type==='suru'){ return basicForm.slice(0,-2)+'さす'; }
+  if(type==='kuru'){ return '来さす'; }
+  return null;
+}
+
+function verbPassive(basicForm, type, dialect){
+  if(type==='godan'){
+    var last=basicForm.slice(-1), stem=basicForm.slice(0,-1), row=ROW[last];
+    if(!row) return null;
+    return stem+row.a+'れる';
+  }
+  if(type==='ichidan'){ return basicForm.slice(0,-1)+'られる'; }
+  if(type==='suru'){ return basicForm.slice(0,-2)+'される'; }
+  if(type==='kuru'){ return '来られる'; }
+  return null;
+}
+
+function verbVolitional(basicForm, type, dialect){
+  if(type==='godan'){
+    var last=basicForm.slice(-1), stem=basicForm.slice(0,-1), row=ROW[last];
+    if(!row) return null;
+    return stem+row.o+'ら';
+  }
+  if(type==='ichidan'){
+    var stem2=basicForm.slice(0,-1);
+    return dialect==='ito' ? stem2+'よそー' : stem2+'よら';
+  }
+  if(type==='suru'){ return basicForm.slice(0,-2)+'しよら'; }
+  if(type==='kuru'){ return '来よら'; }
+  return null;
+}
+
+/* --- VOCAB辞書(④で使っているもの)を「単語完全一致」用のマップに変換 --- */
+function buildVocabMap(dialect){
+  var map = {};
+  var readingMap = {};
+  var dict = dialect==='ito' ? VOCAB.ito : VOCAB.muro;
+  [dict, VOCAB.common].forEach(function(d){
+    for(var k in d){
+      // 括弧や補足説明などが含まれる項目は従来通りスキップ
+      if(k.indexOf('「')!==-1 || k.indexOf('(')!==-1) continue;
+      // 方言側に複数候補がある場合は先頭の1つを採用(例: "ほる・ほかす"→"ほる")
+      var targetVal = d[k].replace(/[「」()（）]/g,'').split('・')[0];
+      // 「・」で区切られている標準語(例: "おかしい・変")は分割して個別に登録
+      k.split('・').forEach(function(subKey){
+        subKey = subKey.trim();
+        if(subKey.length===0) return;
+        if(!map[subKey]){ map[subKey] = targetVal; }
+        // 読み(仮名)でも登録しておく。「ものすごい/もの凄い/物凄い」のような
+        // 漢字の開き方だけが違う表記ゆれは、kuromojiが返すreadingが
+        // どの表記でも同じになるため、これだけで自動的にまとめて拾える。
+        if(tokenizer){
+          var yomi = tokenizer.tokenize(subKey).map(function(yt){
+            return yt.reading || yt.surface_form;
+          }).join('');
+          if(subKey.length>=2 && yomi && !readingMap[yomi]){ readingMap[yomi] = targetVal; }
+        }
+      });
+    }
+  });
+  return { map: map, readingMap: readingMap };
+}
+
+/* --- トークン列を先頭から見ていき、紀州弁の文字列を組み立てる ---
+   1トークンだけでなく、直後のトークンとの組み合わせ(例: 動詞+ない)を
+   見て変換するため、consumed(何トークン分をまとめて消費したか)を
+   都度返しながら進める。 */
+function convertTokens(tokens, dialect){
+  var vocab = buildVocabMap(dialect);
+  var vocabMap = vocab.map;
+  var readingMap = vocab.readingMap;
+  var out = '';
+  var i = 0;
+  while(i < tokens.length){
+    var t = tokens[i];
+    var next  = tokens[i+1];
+    var next2 = tokens[i+2];
+    var next3 = tokens[i+3];
+    var replaced = null;
+    var consumed = 1;
+
+    if(t.pos === '動詞'){
+      var type = kuromojiTypeToInternal(t.conjugated_type);
+      if(type){
+        if(next && next.pos==='助動詞' && next.basic_form==='ない'){
+          replaced = verbNegation(t.basic_form, type, dialect); consumed = 2;
+        } else if(next && next.basic_form==='せる'){
+          replaced = verbCausative(t.basic_form, type, dialect); consumed = 2;
+        } else if(next && next.basic_form==='れる'){
+          replaced = verbPassive(t.basic_form, type, dialect); consumed = 2;
+        } else if(next && next.pos==='助動詞' && next.basic_form==='う'){
+          replaced = verbVolitional(t.basic_form, type, dialect); consumed = 2;
+        } else if(next && next.surface_form==='て' && next.pos==='助詞' &&
+                  next2 && next2.pos==='動詞' && next2.basic_form==='いる'){
+          // 「〜ている」の進行形。縮約形「〜てる」はここでは非対応(②で個別確認)
+          replaced = verbProgressive(t.basic_form, type, dialect); consumed = 3;
+        }
+      }
+    } else if(t.pos === '形容詞' && t.conjugated_form === '連用形'){
+      // 「高く」+ない/て/なる のパターンだけウ音便を適用
+      var onbin = adjOnbin(t.basic_form);
+      if(onbin && next){
+        if(next.pos==='助動詞' && next.basic_form==='ない'){ replaced = onbin+'うない'; consumed = 2; }
+        else if(next.surface_form==='て' && next.pos==='助詞'){ replaced = onbin+'うて'; consumed = 2; }
+        else if(next.pos==='動詞' && next.basic_form==='なる'){ replaced = onbin+'うなる'; consumed = 2; }
+      }
+    } else if(t.pos==='助動詞' && (t.basic_form==='だ' || t.basic_form==='です')){
+      replaced = (t.surface_form==='だろう' || t.surface_form==='でしょう') ? 'やろー' : 'や';
+    } else if(t.pos==='助詞' && t.basic_form==='から'){
+      replaced = 'さかい';
+    } else if(dialect==='muro' && t.pos==='助詞' && t.basic_form==='が'){
+      var prev = tokens[i-1];
+      if(prev && ['俺','わし','私'].indexOf(prev.basic_form)!==-1){ replaced = 'ん'; }
+    } else if(dialect==='ito' && t.basic_form==='の' && next && next.basic_form==='方' &&
+              next2 && next2.basic_form==='が' && next3 && (next3.basic_form==='いい' || next3.basic_form==='良い')){
+      replaced = 'しかええ'; consumed = 4;
+    } else {
+      replaced = vocabMap[t.basic_form] || vocabMap[t.surface_form] ||
+                 (t.reading && readingMap[t.reading]) || null;
+    }
+
+    if(replaced !== null){
+      out += replaced;
+    } else {
+      for(var c=0; c<consumed; c++){ out += tokens[i+c].surface_form; }
+    }
+    i += consumed;
+  }
+  return out;
+}
+
+/* --- 2文字以上の完全一致する語彙を、形態素解析より先に確定させておく ---
+   「そこら辺」のような複合語はkuromojiが複数トークンに分割してしまい、
+   単語単位のマッチでは拾えない(または一部だけ別の語に誤反応する)ことが
+   あるため、トークナイズの前に完全一致で置き換えてプレースホルダで
+   保護し、トークン処理が終わったあとで正しい変換結果に戻す。 */
+function protectExactPhrases(text, dialect){
+  var vocabMap = buildVocabMap(dialect).map;
+  var keys = Object.keys(vocabMap).filter(function(k){ return k.length>=2; });
+  keys.sort(function(a,b){ return b.length - a.length; }); // 長い語から優先
+  var placeholders = [];
+  var out = '';
+  var i = 0;
+  while(i < text.length){
+    var matched = false;
+    for(var j=0; j<keys.length; j++){
+      var k = keys[j];
+      if(text.substr(i, k.length) === k){
+        placeholders.push(vocabMap[k]);
+        out += '\uE000' + (placeholders.length-1) + '\uE001';
+        i += k.length;
+        matched = true;
+        break;
+      }
+    }
+    if(!matched){ out += text.charAt(i); i++; }
+  }
+  return { text: out, placeholders: placeholders };
+}
+function convertBulk(text, dialect){
+  var protectedInput = protectExactPhrases(text, dialect);
+  var tokens = tokenizer.tokenize(protectedInput.text);
+  var result = convertTokens(tokens, dialect);
+  return result.replace(/\uE000(\d+)\uE001/g, function(_, idx){
+    return protectedInput.placeholders[idx];
+  });
+}
+
+function renderBulk(){
+  var text = document.getElementById('bulkInput').value.trim();
+  var box = document.getElementById('bulkResults');
+  if(!text){ box.innerHTML=''; return; }
+  if(!tokenizer){
+    box.innerHTML = '<p class="note">解析エンジンを読み込み中です。数秒待ってからもう一度お試しください。</p>';
+    return;
+  }
+  var ito = convertBulk(text,'ito');
+  var muro = convertBulk(text,'muro');
+  box.innerHTML =
+    '<div class="dial-block"><div class="dial-head ito">伊都方言</div><table><tr><td class="val">'+ito.replace(/\n/g,'<br>')+'</td></tr></table></div>'+
+    '<div class="dial-block"><div class="dial-head muro">東牟婁奥地方言</div><table><tr><td class="val">'+muro.replace(/\n/g,'<br>')+'</td></tr></table></div>';
+}
+</script>
+
+</body>
+</html>
